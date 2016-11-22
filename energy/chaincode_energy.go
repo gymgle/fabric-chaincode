@@ -47,8 +47,8 @@ type Transaction struct {
 }
 
 func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
-	if len(args) != 2 {
-		return nil, errors.New("Init(): len(args) is " + strconv.Itoa(len(args)) + ", Incorrect number of arguments. Expecting 2")
+	if len(args) != 3 {
+		return nil, errors.New("Init(): len(args) is " + strconv.Itoa(len(args)) + ", Incorrect number of arguments. Expecting 3")
 	}
 
 	if function == "createUser" {
