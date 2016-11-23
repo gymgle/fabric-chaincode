@@ -1,6 +1,9 @@
 /*
 	author:swb
 	emial:swbsin@163.com
+
+	Updated by Gymgle
+
 	MIT License
 */
 
@@ -47,13 +50,12 @@ type Transaction struct {
 }
 
 func (t *SimpleChaincode) Init(stub shim.ChaincodeStubInterface, function string, args []string) ([]byte, error) {
-	if len(args) != 3 {
-		return nil, errors.New("Init(): len(args) is " + strconv.Itoa(len(args)) + ", Incorrect number of arguments. Expecting 3")
+	if len(args) != 0 {
+		return nil, errors.New("Incorrect number of arguments. Expecting 0")
 	}
 
-	if function == "createUser" {
-		return t.createUser(stub, args)
-	}
+	fmt.Println("Init OK!")
+
 	return nil, nil
 }
 
@@ -68,6 +70,11 @@ func (t *SimpleChaincode) Invoke(stub shim.ChaincodeStubInterface, function stri
 			return nil, errors.New("Incorrect number of arguments. Expecting 4")
 		}
 		return buyByAddress(stub, args)
+	} else if function == "createUser" {
+		if len(args) != 2 {
+			return nil, errors.New("Incorrect number of arguments. Expecting 2")
+		}
+		return t.createUser(stub, args)
 	}
 	return nil, errors.New("Received unknown function invocation")
 }
@@ -137,6 +144,7 @@ func GetAddress() (string, string, string) {
 	b := make([]byte, 48)
 
 	if _, err := io.ReadFull(rand.Reader, b); err != nil {
+		fmt.Println("Get rand failed")
 		return "", "", ""
 	}
 
@@ -151,34 +159,44 @@ func GetAddress() (string, string, string) {
 }
 
 func (t *SimpleChaincode) createUser(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
+	fmt.Println("Enter createUser...")
 	var energy, money int
 	var err error
 	var homeBytes []byte
 	if len(args) != 2 {
+		fmt.Println("Incorrect number of arguments. Expecting 2")
 		return nil, errors.New("Incorrect number of arguments. Expecting 2")
 	}
 	address, priKey, pubKey := GetAddress()
 	energy, err = strconv.Atoi(args[0])
 	if err != nil {
+		fmt.Println("Get energy failed!")
 		return nil, errors.New("want Integer number")
 	}
 	money, err = strconv.Atoi(args[1])
 	if err != nil {
+		fmt.Println("Get money failed!")
 		return nil, errors.New("want Integer number")
 	}
+	fmt.Printf("HomeInfo: address = %v, energy = %v, money = %v, homeNo = %v, priKey = %v, pubKey = %v\n", address, energy, money, homeNo, priKey, pubKey)
 	home := Home{Address: address, Energy: energy, Money: money, Id: homeNo, Status: 1, PriKey: priKey, PubKey: pubKey}
 	err = writeHome(stub, home)
 	if err != nil {
+		fmt.Println("Writehome failed!")
 		return nil, errors.New("write Error" + err.Error())
 	}
 	homeBytes, err = json.Marshal(&home)
 	if err != nil {
+		fmt.Println("Marshal home bytes failed!")
 		return nil, errors.New("Error retrieve")
 	}
+	homeNo = homeNo + 1
+	fmt.Println("Create user success!")
 	return homeBytes, nil
 }
 
 func buyByAddress(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
+	fmt.Println("Enter buyByAddress...")
 	if len(args) != 4 {
 		return nil, errors.New("Incorrect number of arguments. Expecting 4")
 	}
@@ -186,44 +204,67 @@ func buyByAddress(stub shim.ChaincodeStubInterface, args []string) ([]byte, erro
 	homeBuyer, _, err := getHomeByAddress(stub, args[2])
 
 	if args[1] != args[2]+"11" {
-		buyValue, erro := strconv.Atoi(args[3])
-		if erro != nil {
-			return nil, errors.New("want integer number")
-		}
-		if homeSeller.Energy < buyValue && homeBuyer.Money < buyValue {
-			return nil, errors.New("not enough money or energy")
-		}
-
-		homeSeller.Energy = homeSeller.Energy - buyValue
-		homeSeller.Money = homeSeller.Money + buyValue
-		homeBuyer.Energy = homeBuyer.Energy + buyValue
-		homeBuyer.Money = homeBuyer.Money - buyValue
-
-		err = writeHome(stub, homeSeller)
-		if err == nil {
-			return nil, err
-		}
-
-		err = writeHome(stub, homeBuyer)
-		if err == nil {
-			return nil, err
-		}
-
-		transaction := Transaction{BuyerAddress: args[2], BuyerAddressSign: args[1], SellerAddress: args[0], Energy: buyValue, Money: buyValue, Id: transactionNo, Time: time.Now().Unix()}
-		err = writeTransaction(stub, transaction)
-		if err != nil {
-			return nil, err
-		}
-		transactionNo = transactionNo + 1
-		txBytes, err := json.Marshal(&transaction)
-
-		if err != nil {
-			return nil, errors.New("Error retrieving schoolBytes")
-		}
-
-		return txBytes, nil
+		fmt.Printf("Verify sign data failed!\n")
+		return nil, errors.New("Verify sign data failed!")
 	}
-	return nil, err
+
+	fmt.Println("Verify sign data ok.")
+	buyValue, erro := strconv.Atoi(args[3])
+	if erro != nil {
+		fmt.Println("The last args should be a integer number.")
+		return nil, errors.New("want integer number")
+	}
+	if homeSeller.Energy < buyValue && homeBuyer.Money < buyValue {
+		fmt.Println("Not enough money or energy")
+		return nil, errors.New("not enough money or energy")
+	}
+
+	fmt.Println("Before trans:")
+	fmt.Printf("    homeSeller.Energy = %d, homeSeller.Money = %d\n", homeSeller.Energy, homeSeller.Money)
+	fmt.Printf("    homeBuyer.Energy = %d, homeBuyer.Money = %d\n", homeBuyer.Energy, homeBuyer.Money)
+
+	homeSeller.Energy = homeSeller.Energy - buyValue
+	homeSeller.Money = homeSeller.Money + buyValue
+	homeBuyer.Energy = homeBuyer.Energy + buyValue
+	homeBuyer.Money = homeBuyer.Money - buyValue
+
+	fmt.Println("After trans:")
+	fmt.Printf("    homeSeller.Energy = %d, homeSeller.Money = %d\n", homeSeller.Energy, homeSeller.Money)
+	fmt.Printf("    homeBuyer.Energy = %d, homeBuyer.Money = %d\n", homeBuyer.Energy, homeBuyer.Money)
+
+	err = writeHome(stub, homeSeller)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("Write homeSeller OK!")
+
+	err = writeHome(stub, homeBuyer)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println("Write homeBuyer OK!")
+
+	fmt.Println("TransactionInfo:")
+	fmt.Println("    BuyerAddress:", args[2])
+	fmt.Println("    BuyerAddressSign:", args[1])
+	fmt.Println("    SellerAddress:", args[0])
+	fmt.Println("    Energy:", buyValue)
+	fmt.Println("    Money:", buyValue)
+	fmt.Println("    Id:", transactionNo)
+
+	transaction := Transaction{BuyerAddress: args[2], BuyerAddressSign: args[1], SellerAddress: args[0], Energy: buyValue, Money: buyValue, Id: transactionNo, Time: time.Now().Unix()}
+	err = writeTransaction(stub, transaction)
+	if err != nil {
+		return nil, err
+	}
+	transactionNo = transactionNo + 1
+	txBytes, err := json.Marshal(&transaction)
+
+	if err != nil {
+		return nil, errors.New("Error retrieving schoolBytes")
+	}
+
+	return txBytes, nil
 }
 
 func changeStatus(stub shim.ChaincodeStubInterface, args []string) ([]byte, error) {
@@ -322,6 +363,7 @@ func getTransactions(stub shim.ChaincodeStubInterface) ([]Transaction, error) {
 			transactions = append(transactions, transaction)
 			i = i + 1
 		}
+		return transactions, nil
 	} else {
 		i := 0
 		for i < 10 {
@@ -339,27 +381,35 @@ func getTransactions(stub shim.ChaincodeStubInterface) ([]Transaction, error) {
 }
 
 func writeHome(stub shim.ChaincodeStubInterface, home Home) error {
+	fmt.Println("Enter writeHome...")
 	homeBytes, err := json.Marshal(&home)
 	if err != nil {
+		fmt.Println("json.Marshal failed!")
 		return err
 	}
 	err = stub.PutState(home.Address, homeBytes)
 	if err != nil {
+		fmt.Println("stub.PutState failed!")
 		return errors.New("PutState Error" + err.Error())
 	}
+	fmt.Println("Out writeHome.")
 	return nil
 }
 
 func writeTransaction(stub shim.ChaincodeStubInterface, transaction Transaction) error {
+	fmt.Println("Enter writeTransaction...")
 	txBytes, err := json.Marshal(&transaction)
 	if err != nil {
+		fmt.Println("json.Marshal failed!")
 		return nil
 	}
 
 	id := strconv.Itoa(transaction.Id)
 	err = stub.PutState("transaction"+id, txBytes)
 	if err != nil {
+		fmt.Println("stub.PutState failed!")
 		return errors.New("PutState Error" + err.Error())
 	}
+	fmt.Println("Out writeTransaction.")
 	return nil
 }
